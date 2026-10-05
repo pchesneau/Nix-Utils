@@ -76,6 +76,16 @@
 
             rm "$out/$CACERTS_REL_PATH"
             ln -s "${trustStore}/cacerts" "$out/$CACERTS_REL_PATH"
+
+            # symlinkJoin copies jdk's nix-support/setup-hook verbatim, which hardcodes
+            # JAVA_HOME to the *original* (uncustomized) JDK store path. Regenerate it so
+            # JAVA_HOME points at this derivation (with the embedded truststore) instead.
+            if [ -f "$out/nix-support/setup-hook" ]; then
+              rm "$out/nix-support/setup-hook"
+              cat > "$out/nix-support/setup-hook" <<HOOK
+if [ -z "''${JAVA_HOME-}" ]; then export JAVA_HOME=$out; fi
+HOOK
+            fi
           '';
         };
 
