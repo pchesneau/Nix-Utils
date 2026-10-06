@@ -53,42 +53,6 @@
           '';
         };
 
-      embedTrustStoreInJdk =
-        {
-          pkgs,
-          jdk,
-          trustStore,
-        }:
-        pkgs.symlinkJoin {
-          name = "${jdk.name}-embedded-truststore";
-          paths = [ jdk ];
-
-          postBuild = ''
-            CACERTS_REL_PATH=""
-            if [ -f "$out/lib/openjdk/lib/security/cacerts" ]; then
-              CACERTS_REL_PATH="lib/openjdk/lib/security/cacerts"
-            elif [ -f "$out/lib/security/cacerts" ]; then
-              CACERTS_REL_PATH="lib/security/cacerts"
-            else
-              echo "Error:  Cacerts not found in the provided JDK." >&2
-              exit 1
-            fi
-
-            rm "$out/$CACERTS_REL_PATH"
-            ln -s "${trustStore}/cacerts" "$out/$CACERTS_REL_PATH"
-
-            # symlinkJoin copies jdk's nix-support/setup-hook verbatim, which hardcodes
-            # JAVA_HOME to the *original* (uncustomized) JDK store path. Regenerate it so
-            # JAVA_HOME points at this derivation (with the embedded truststore) instead.
-            if [ -f "$out/nix-support/setup-hook" ]; then
-              rm "$out/nix-support/setup-hook"
-              cat > "$out/nix-support/setup-hook" <<HOOK
-if [ -z "''${JAVA_HOME-}" ]; then export JAVA_HOME=$out; fi
-HOOK
-            fi
-          '';
-        };
-
       mkCustomJdk =
         {
           pkgs,
@@ -106,10 +70,61 @@ HOOK
               ;
           };
         in
-        self.lib.embedTrustStoreInJdk {
+        self.lib.wrapJdkWithTrustStore {
           inherit pkgs jdk;
           trustStore = customTrustStore;
         };
+
+      wrapJdkWithTrustStore =
+        {
+          pkgs,
+          jdk,
+          trustStore,
+          storePassword ? "changeit",
+        }:
+        pkgs.runCommand "${jdk.name}-wrapped-truststore"
+          {
+            nativeBuildInputs = [ pkgs.makeWrapper ];
+          }
+          ''
+            mkdir -p $out
+            cp -a ${jdk}/. $out/
+            chmod -R u+w $out
+
+            # The "java" launcher accepts JVM "-D" system properties directly on its
+            # command line. Every other JDK tool (javac, jar, keytool, jlink, ...)
+            # only recognizes its own options and instead forwards anything prefixed
+            # with "-J" straight through to the underlying JVM, so the same "-D"
+            # flags must be passed as "-J-D..." for those binaries.
+            for bin in "$out"/bin/*; do
+              [ -d "$bin" ] && continue
+              [ -f "$bin" ] || [ -L "$bin" ] || continue
+
+              name="$(basename "$bin")"
+              hidden="$(dirname "$bin")/.$name-wrapped"
+              mv "$bin" "$hidden"
+
+              if [ "$name" = "java" ]; then
+                flagPrefix=""
+              else
+                flagPrefix="-J"
+              fi
+
+              makeWrapper "$hidden" "$bin" \
+                --add-flags "$flagPrefix-Djavax.net.ssl.trustStore=${trustStore}/cacerts" \
+                --add-flags "$flagPrefix-Djavax.net.ssl.trustStorePassword=${storePassword}"
+            done
+
+            # symlinkJoin copies jdk's nix-support/setup-hook verbatim, which hardcodes
+            # JAVA_HOME to the *original* (uncustomized) JDK store path. Regenerate it so
+            # JAVA_HOME points at this derivation (with the wrapped binaries) instead.
+            if [ -f "$out/nix-support/setup-hook" ]; then
+              rm -f "$out/nix-support/setup-hook"
+              cat > "$out/nix-support/setup-hook" <<HOOK
+if [ -z "''${JAVA_HOME-}" ]; then export JAVA_HOME=$out; fi
+HOOK
+            fi
+          '';
     };
   };
 }
