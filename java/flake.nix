@@ -10,16 +10,16 @@
       mkCustomJvm =
         {
           lib,
-          graalvm,
+          jdk,
           extraCerts,
         }:
-        graalvm.overrideAttrs (
+        jdk.overrideAttrs (
           finalAttrs: old: {
             postInstall =
               old.postInstall
               + lib.concatStrings (
                 lib.map (cert: ''
-                  ${graalvm}/bin/keytool -importcert -noprompt \
+                  ${jdk}/bin/keytool -importcert -noprompt \
                     -keystore $out/lib/security/cacerts -storepass changeit \
                     -file ${cert}
                 '') extraCerts
