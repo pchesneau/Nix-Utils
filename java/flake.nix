@@ -87,43 +87,43 @@
             nativeBuildInputs = [ pkgs.makeWrapper ];
           }
           ''
-            mkdir -p $out
-            cp -a ${jdk}/. $out/
-            chmod -R u+w $out
+                        mkdir -p $out
+                        cp -a ${jdk}/. $out/
+                        chmod -R u+w $out
 
-            # The "java" launcher accepts JVM "-D" system properties directly on its
-            # command line. Every other JDK tool (javac, jar, keytool, jlink, ...)
-            # only recognizes its own options and instead forwards anything prefixed
-            # with "-J" straight through to the underlying JVM, so the same "-D"
-            # flags must be passed as "-J-D..." for those binaries.
-            for bin in "$out"/bin/*; do
-              [ -d "$bin" ] && continue
-              [ -f "$bin" ] || [ -L "$bin" ] || continue
+                        # The "java" launcher accepts JVM "-D" system properties directly on its
+                        # command line. Every other JDK tool (javac, jar, keytool, jlink, ...)
+                        # only recognizes its own options and instead forwards anything prefixed
+                        # with "-J" straight through to the underlying JVM, so the same "-D"
+                        # flags must be passed as "-J-D..." for those binaries.
+                        for bin in "$out"/bin/*; do
+                          [ -d "$bin" ] && continue
+                          [ -f "$bin" ] || [ -L "$bin" ] || continue
 
-              name="$(basename "$bin")"
-              hidden="$(dirname "$bin")/.$name-wrapped"
-              mv "$bin" "$hidden"
+                          name="$(basename "$bin")"
+                          hidden="$(dirname "$bin")/.$name-wrapped"
+                          mv "$bin" "$hidden"
 
-              if [ "$name" = "java" ]; then
-                flagPrefix=""
-              else
-                flagPrefix="-J"
-              fi
+                          if [ "$name" = "java" ]; then
+                            flagPrefix=""
+                          else
+                            flagPrefix="-J"
+                          fi
 
-              makeWrapper "$hidden" "$bin" \
-                --add-flags "$flagPrefix-Djavax.net.ssl.trustStore=${trustStore}/cacerts" \
-                --add-flags "$flagPrefix-Djavax.net.ssl.trustStorePassword=${storePassword}"
-            done
+                          makeWrapper "$hidden" "$bin" \
+                            --add-flags "$flagPrefix-Djavax.net.ssl.trustStore=${trustStore}/cacerts" \
+                            --add-flags "$flagPrefix-Djavax.net.ssl.trustStorePassword=${storePassword}"
+                        done
 
-            # symlinkJoin copies jdk's nix-support/setup-hook verbatim, which hardcodes
-            # JAVA_HOME to the *original* (uncustomized) JDK store path. Regenerate it so
-            # JAVA_HOME points at this derivation (with the wrapped binaries) instead.
-            if [ -f "$out/nix-support/setup-hook" ]; then
-              rm -f "$out/nix-support/setup-hook"
-              cat > "$out/nix-support/setup-hook" <<HOOK
-if [ -z "''${JAVA_HOME-}" ]; then export JAVA_HOME=$out; fi
-HOOK
-            fi
+                        # symlinkJoin copies jdk's nix-support/setup-hook verbatim, which hardcodes
+                        # JAVA_HOME to the *original* (uncustomized) JDK store path. Regenerate it so
+                        # JAVA_HOME points at this derivation (with the wrapped binaries) instead.
+                        if [ -f "$out/nix-support/setup-hook" ]; then
+                          rm -f "$out/nix-support/setup-hook"
+                          cat > "$out/nix-support/setup-hook" <<HOOK
+            if [ -z "''${JAVA_HOME-}" ]; then export JAVA_HOME=$out; fi
+            HOOK
+                        fi
           '';
     };
   };
