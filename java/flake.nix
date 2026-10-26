@@ -12,6 +12,7 @@
           lib,
           jdk,
           extraCerts,
+          removedCertAliases = []
         }:
         jdk.overrideAttrs (
           finalAttrs: old: {
@@ -23,6 +24,13 @@
                     -keystore $out/lib/security/cacerts -storepass changeit \
                     -file ${cert}
                 '') extraCerts
+              )
+              + lib.concatStrings (
+                lib.map (cert: ''
+                  ${jdk}/bin/keytool -delete -noprompt \
+                    -keystore $out/lib/security/cacerts -storepass changeit \
+                    -alias ${cert}
+                '') removedCertAliases
               );
 
             doInstallCheck = false;
