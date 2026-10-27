@@ -11,7 +11,7 @@
         {
           lib,
           jdk,
-          extraCerts,
+          extraCerts = [],
           removedCertAliases = []
         }:
         jdk.overrideAttrs (
