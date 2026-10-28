@@ -29,7 +29,7 @@
                 lib.map (cert: ''
                   ${jdk}/bin/keytool -delete -noprompt \
                     -keystore $out/lib/security/cacerts -storepass changeit \
-                    -alias ${cert}
+                    -alias "${cert}"
                 '') removedCertAliases
               );
 
